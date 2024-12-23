@@ -11,7 +11,9 @@ from urllib import parse, request
 
 
 SCRIPTURE_READING = "Scripture Reading:"
-VERSE_PATTERN = r"(([0-9] )?[A-Z][a-z]+\.? )?[0-9:,\- ]+"
+VERSE_PATTERN = r"(([0-9] )?[A-Z][a-z]+\.? )?([0-9a-b:\-]|(, ))+"
+V_PATTERN = r"(v.|vv.) [0-9\-]+"
+
 URL = "https://api.lsm.org/recver.php?String={}&&Out=json"
 
 
@@ -20,7 +22,21 @@ def is_scripture_reading(line: str):
 
 
 def remove_trailing_punctuation(line: str) -> str:
-    return line.strip().rstrip(".?!:")
+    return line.strip().rstrip(".?!:,;")
+
+
+def remove_words(maybe_ref: str) -> str:
+    maybe_ref = maybe_ref.replace("cf.", "").strip()
+    if ", footnote" in maybe_ref:
+        maybe_ref = maybe_ref.split(", footnote", 1)[0].strip()
+    return maybe_ref
+
+
+def is_reference(maybe_ref: str) -> bool:
+    maybe_ref = remove_words(maybe_ref)
+    return bool(re.fullmatch(VERSE_PATTERN, maybe_ref)) or bool(
+        re.fullmatch(V_PATTERN, maybe_ref)
+    )
 
 
 def find_dash_before_reference(line: str) -> Optional[int]:
@@ -33,9 +49,11 @@ def find_dash_before_reference(line: str) -> Optional[int]:
         maybe_verses = line[dash.start() + 1 :].strip()
         maybe_ref = maybe_verses.split("; ")
         logging.debug("Maybe a ref: %s", maybe_ref)
-        if all(re.fullmatch(VERSE_PATTERN, verse) for verse in maybe_ref):
-            logging.debug("Found a reference: %s", maybe_verses)
+        if all(is_reference(verse) for verse in maybe_ref):
+            logging.debug("Found a reference: %s", maybe_ref)
             return dash.start()
+        else:
+            logging.warning("Not a reference: %s", maybe_ref)
     return None
 
 
@@ -71,16 +89,28 @@ class ScriptureProcesser:
             stripped = item.strip()
             if not stripped:
                 continue
-            if " " in stripped:
-                book, chapter_and_verse = stripped.split(" ", 1)
+
+            book = self.last_book
+            chapter = self.last_chapter
+            stripped = remove_words(stripped)
+            logging.debug("Processing reference: '%s'", stripped)
+            if re.fullmatch(V_PATTERN, stripped):
+                # Example: v. 1
+                verse = stripped.split(" ", 1)[1]
+            elif re.fullmatch(VERSE_PATTERN, stripped):
+                if " " in stripped:
+                    book, chapter_and_verse = stripped.rsplit(" ", 1)
+                else:
+                    book = self.last_book
+                    chapter_and_verse = stripped
+                if ":" in chapter_and_verse:
+                    chapter, verse = chapter_and_verse.split(":", 1)
+                else:
+                    chapter = self.last_chapter
+                    verse = chapter_and_verse
             else:
-                book = self.last_book
-                chapter_and_verse = stripped
-            if ":" in chapter_and_verse:
-                chapter, verse = chapter_and_verse.split(":", 1)
-            else:
-                chapter = self.last_chapter
-                verse = chapter_and_verse
+                logging.error("Can't parse: '%s', ignoring.", item)
+                continue
             logging.debug(f"Fetching verse: {book} {chapter}:{verse}")
             verses = fetch_verse(f"{book} {chapter}:{verse}")
             result.extend(verses)
@@ -101,7 +131,6 @@ def process(file_name: str) -> List[str]:
         lines = f.readlines()
 
     processer = ScriptureProcesser()
-    logging.debug("Read %d lines", len(lines))
     out = []
     for line in lines:
         if not line.strip():
@@ -134,7 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("file_name", type=str, help="The name of the file to process")
     args = parser.parse_args()
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.WARNING,
         format="%(filename)s:%(lineno)d: %(levelname)s - %(message)s",
     )
     out = process(args.file_name)
