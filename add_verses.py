@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 from urllib import parse, request
 
 
@@ -57,16 +57,21 @@ def find_dash_before_reference(line: str) -> Optional[int]:
     return None
 
 
-def fetch_verse(verse_request: str) -> List[Tuple[str, str]]:
+def fetch_verse(verse_request: str) -> Sequence[Tuple[str, str]]:
     req = request.Request(
         URL.format(parse.quote(verse_request)), headers={"User-Agent": "Mozilla/5.0"}
     )
     logging.debug("Fetching: %s", req.full_url)
-    result = ["UNKNOWN"]
+    result = []
     with request.urlopen(req) as response:
         content = response.read().decode("utf-8")
         response_json = json.loads(content)
-        result = [(verse["ref"], verse["text"]) for verse in response_json["verses"]]
+        for verse in response_json["verses"]:
+            if "No such verse in" in verse["text"]:
+                logging.error("No such verse in: %s PLEASE CHECK", verse_request)
+                continue
+            result.append((verse["ref"], verse["text"]))
+
     return result
 
 
