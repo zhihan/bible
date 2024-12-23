@@ -1,0 +1,11 @@
+{
+  "name": "bible",
+  "version": "1.0.0",
+  "description": "Access LSM's endpoint to fetch bible verses",
+  "main": "index.js",
+  "scripts": {
+    "fetch": "./cli.js"
+  },
+  "author": "Zhi Han",
+  "license": "ISC"
+}
