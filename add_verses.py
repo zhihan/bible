@@ -11,9 +11,8 @@ from urllib import parse, request
 
 
 SCRIPTURE_READING = "Scripture Reading:"
-VERSE_PATTERN = r"(([0-9] )?[A-Z][a-z]+\.? )?([0-9a-b:\-]|(, ))+"
-V_PATTERN = r"(v.|vv.) [0-9\-]+"
-
+VERSE_PATTERN = r"(([0-9] )?[A-Z][a-z]+\.? )?([0-9a-d:\-, ])+"
+V_PATTERN = r"(v.|vv.) [0-9a-d\-, ]+"
 URL = "https://api.lsm.org/recver.php?String={}&&Out=json"
 
 
@@ -26,6 +25,7 @@ def remove_trailing_punctuation(line: str) -> str:
 
 
 def remove_words(maybe_ref: str) -> str:
+    """Remove words that are not part of the reference."""
     maybe_ref = maybe_ref.replace("cf.", "").strip()
     if ", footnote" in maybe_ref:
         maybe_ref = maybe_ref.split(", footnote", 1)[0].strip()
@@ -55,6 +55,24 @@ def find_dash_before_reference(line: str) -> Optional[int]:
         else:
             logging.warning("Not a reference: %s", maybe_ref)
     return None
+
+
+def find_references_in_paren(line: str) -> List[str]:
+    result = []
+    for match in re.finditer(r"\(([^)]+)\)", line):
+        logging.debug("Found paren: %s", match.group(1))
+        in_paren = match.group(1).strip()
+        maybe_ref = in_paren.split("; ")
+        for a_maybe_ref in maybe_ref:
+            if is_reference(a_maybe_ref):
+                logging.debug("Found a reference in paren: %s", a_maybe_ref)
+                result.append(a_maybe_ref)
+            else:
+                logging.warning("Not a reference in paren: %s", a_maybe_ref)
+   
+    if result:
+        logging.debug("Found references in paren: %s", result)
+    return result
 
 
 def fetch_verse(verse_request: str) -> Sequence[Tuple[str, str]]:
@@ -152,7 +170,9 @@ def process(file_name: str) -> List[str]:
             scriptures = scriptures.split(";")
             scriptures = [verse.strip() for verse in scriptures]
             verses.extend(processer.process(scriptures))
-
+        elif (ref_in_paren := find_references_in_paren(line)):
+            logging.debug("References in paren: %s", ref_in_paren)
+            verses.extend(processer.process(ref_in_paren))
         out.append("")
         for verse in verses:
             out.append(f"{verse[0]}  {verse[1]}")
