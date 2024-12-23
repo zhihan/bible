@@ -1,0 +1,11 @@
+Use the following command to parse the input and insert verses.
+
+    python3 add_verses.py msg_two.txt 1>msg_two_with_verses.txt
+
+If you see ERROR logs, you need to look into the issues. Possible causes:
+
+ - The input line has a different style, e.g., missing the '-' separator.
+ - Bug in the code.
+
+
+ Currently it does not support inline references like "(Rom. 1:1)" yet.
