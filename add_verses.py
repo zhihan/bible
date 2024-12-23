@@ -69,7 +69,6 @@ def fetch_verse(verse_request: str) -> Sequence[Tuple[str, str]]:
         for verse in response_json["verses"]:
             if "No such verse in" in verse["text"]:
                 logging.error("No such verse in: %s PLEASE CHECK", verse_request)
-                continue
             result.append((verse["ref"], verse["text"]))
 
     return result
