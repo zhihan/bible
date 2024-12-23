@@ -1,7 +1,6 @@
 """ A script to add verses to the message text."""
 
 import argparse
-import collections
 import json
 import logging
 import os
