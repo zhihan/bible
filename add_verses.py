@@ -40,6 +40,14 @@ def is_reference(maybe_ref: str) -> bool:
 
 
 def find_dash_before_reference(line: str) -> Optional[int]:
+    """Find the dash before references.
+
+    A reference can be added to the end of line with a dash separating
+    them.
+
+    Example:
+       The Lord is the word of God. - John 1:1
+    """
     line = remove_trailing_punctuation(line)
     if "-" not in line:
         return None
@@ -58,6 +66,13 @@ def find_dash_before_reference(line: str) -> Optional[int]:
 
 
 def find_references_in_paren(line: str) -> List[str]:
+    """Find the references in parenthses
+
+    A reference can be added inline with the text in parenthesis
+
+    Example:
+       The Lord is the word of God (John 1:1-2).
+    """
     result = []
     for match in re.finditer(r"\(([^)]+)\)", line):
         logging.debug("Found paren: %s", match.group(1))
@@ -69,13 +84,13 @@ def find_references_in_paren(line: str) -> List[str]:
                 result.append(a_maybe_ref)
             else:
                 logging.warning("Not a reference in paren: %s", a_maybe_ref)
-   
     if result:
         logging.debug("Found references in paren: %s", result)
     return result
 
 
 def fetch_verse(verse_request: str) -> Sequence[Tuple[str, str]]:
+    """Fetch a verse from LSM's verse requester API."""
     req = request.Request(
         URL.format(parse.quote(verse_request)), headers={"User-Agent": "Mozilla/5.0"}
     )
@@ -86,6 +101,9 @@ def fetch_verse(verse_request: str) -> Sequence[Tuple[str, str]]:
         response_json = json.loads(content)
         for verse in response_json["verses"]:
             if "No such verse in" in verse["text"]:
+                # This usually happen if a inline reference is rely on the book and
+                # chapter in the context. If that happens, the best way is to just
+                # update the reference from abbreviated to a full reference.
                 logging.error("No such verse in: %s PLEASE CHECK", verse_request)
             result.append((verse["ref"], verse["text"]))
 
@@ -112,14 +130,19 @@ class ScriptureProcesser:
             if not stripped:
                 continue
 
+            # If the reference is to the same book or chapter, sometimes the
+            # reference will omit them.
             book = self.last_book
             chapter = self.last_chapter
+
+            # Remove `cf.` and such, they are not part of the reference.
             stripped = remove_words(stripped)
             logging.debug("Processing reference: '%s'", stripped)
             if re.fullmatch(V_PATTERN, stripped):
-                # Example: v. 1
+                # Example: v. 1, vv. 1-3
                 verse = stripped.split(" ", 1)[1]
             elif re.fullmatch(VERSE_PATTERN, stripped):
+                # Either a full reference
                 if " " in stripped:
                     book, chapter_and_verse = stripped.rsplit(" ", 1)
                 else:
@@ -170,7 +193,7 @@ def process(file_name: str) -> List[str]:
             scriptures = scriptures.split(";")
             scriptures = [verse.strip() for verse in scriptures]
             verses.extend(processer.process(scriptures))
-        elif (ref_in_paren := find_references_in_paren(line)):
+        elif ref_in_paren := find_references_in_paren(line):
             logging.debug("References in paren: %s", ref_in_paren)
             verses.extend(processer.process(ref_in_paren))
         out.append("")
@@ -181,6 +204,15 @@ def process(file_name: str) -> List[str]:
 
 
 if __name__ == "__main__":
+    """Usage
+
+    python3 add_verses.py <input-file.txt>
+
+    The output will direct to stdout and logs go to stderr.
+    If you need to save the output to a file, use
+
+    python3 add_verses.py <input-file.txt> 1>/path/to/output.txt
+    """
     parser = argparse.ArgumentParser(
         description="Process a file with scripture references."
     )
