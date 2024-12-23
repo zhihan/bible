@@ -7,5 +7,13 @@ If you see ERROR logs, you need to look into the issues. Possible causes:
  - The input line has a different style, e.g., missing the '-' separator.
  - Bug in the code.
 
+NOTE
+The current limitation is that it does not understand the context. For example
 
- Currently it does not support inline references like "(Rom. 1:1)" yet.
+In Ephisians chapter 4 .... (v. 14) ...
+
+In the above example the code can only extract v. 14 but does not know it is
+referring to Eph. 4:14. If you spot errors like this, the workaround is to
+change the above line to the "standard" reference format.
+
+In Ephisians chapter 4 .... (Eph. 4:14) ...
