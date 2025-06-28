@@ -1,3 +1,8 @@
+UPDATE 6/28/2025
+LSM's recovery version API now requires registration. I will update
+the code once my registration is approved.
+
+
 Use the following command to parse the input and insert verses.
 
     python3 add_verses.py msg_two.txt 1>msg_two_with_verses.txt
@@ -17,3 +22,5 @@ referring to Eph. 4:14. If you spot errors like this, the workaround is to
 change the above line to the "standard" reference format.
 
 In Ephesians chapter 4 .... (Eph. 4:14) ...
+
+
