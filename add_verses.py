@@ -12,7 +12,7 @@ from urllib import parse, request
 SCRIPTURE_READING = "Scripture Reading:"
 VERSE_PATTERN = r"(([0-9] )?[A-Z][a-z]+\.? )?([0-9a-d:\-, ])+"
 V_PATTERN = r"(v.|vv.) [0-9a-d\-, ]+"
-URL = "https://api.lsm.org/recver.php?String={}&&Out=json"
+URL = "https://api.lsm.org/txo.php?String={}&&Out=json"
 
 
 def is_scripture_reading(line: str):
@@ -218,7 +218,7 @@ if __name__ == "__main__":
     parser.add_argument("file_name", type=str, help="The name of the file to process")
     args = parser.parse_args()
     logging.basicConfig(
-        level=logging.WARNING,
+        level=logging.DEBUG,
         format="%(filename)s:%(lineno)d: %(levelname)s - %(message)s",
     )
     out = process(args.file_name)
