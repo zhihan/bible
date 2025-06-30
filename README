@@ -1,6 +1,6 @@
-UPDATE 6/28/2025
-LSM's recovery version API now requires registration. I will update
-the code once my registration is approved.
+UPDATE 6/29/2025
+LSM's recovery version API now requires registration. This code is updated
+to use app_id and token to authenticate with the server.
 
 
 Use the following command to parse the input and insert verses.
