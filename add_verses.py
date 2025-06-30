@@ -1,6 +1,7 @@
 """ A script to add verses to the message text."""
 
 import argparse
+import base64
 import json
 import logging
 import os
@@ -8,11 +9,17 @@ import re
 from typing import List, Optional, Sequence, Tuple
 from urllib import parse, request
 
+import const
+
 
 SCRIPTURE_READING = "Scripture Reading:"
 VERSE_PATTERN = r"(([0-9] )?[A-Z][a-z]+\.? )?([0-9a-d:\-, ])+"
 V_PATTERN = r"(v.|vv.) [0-9a-d\-, ]+"
-URL = "https://api.lsm.org/txo.php?String={}&&Out=json"
+
+APP_ID = const.APP_ID
+TOKEN = const.TOKEN
+TOP_LEVEL_URL = "https://api.lsm.org"
+URL = "https://api.lsm.org/recver/txo.php?String={}&&Out=json"
 
 
 def is_scripture_reading(line: str):
@@ -90,14 +97,27 @@ def find_references_in_paren(line: str) -> List[str]:
 
 def fetch_verse(verse_request: str) -> Sequence[Tuple[str, str]]:
     """Fetch a verse from LSM's verse requester API."""
+    # create a password manager
+    credentials = f"{APP_ID}:{TOKEN}".encode("utf-8")
+    b64_encoded_credentials = base64.b64encode(credentials).decode("utf-8")
     req = request.Request(
-        URL.format(parse.quote(verse_request)), headers={"User-Agent": "Mozilla/5.0"}
+        URL.format(parse.quote(verse_request)),
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": f"Basic {b64_encoded_credentials}",
+        },
     )
     logging.debug("Fetching: %s", req.full_url)
+
     result = []
     with request.urlopen(req) as response:
         content = response.read().decode("utf-8")
-        response_json = json.loads(content)
+        logging.debug("Content: %s", content)
+        try:
+            response_json = json.loads(content)
+        except json.JSONDecodeError:
+            logging.error("Can't decode: %s for %s", content, req.full_url)
+            return [("", "")]
         for verse in response_json["verses"]:
             if "No such verse in" in verse["text"]:
                 # This usually happen if a inline reference is rely on the book and
@@ -116,9 +136,10 @@ class ScriptureProcesser:
     case we will use the last one.
     """
 
-    def __init__(self):
+    def __init__(self, fetch_verse: bool = True):
         self.last_book = None
         self.last_chapter = None
+        self.fetch_verse = fetch_verse
 
     def _process_item(self, references: str) -> List[Tuple[str, str]]:
         # One item can be joined by ','.
@@ -156,7 +177,10 @@ class ScriptureProcesser:
                 logging.error("Can't parse: '%s', ignoring.", item)
                 continue
             logging.debug(f"Fetching verse: {book} {chapter}:{verse}")
-            verses = fetch_verse(f"{book} {chapter}:{verse}")
+            if self.fetch_verse:
+                verses = fetch_verse(f"{book} {chapter}:{verse}")
+            else:
+                verses = [(f"{book} {chapter}:{verse}", ",")]  # Use comma as separator
             result.extend(verses)
             self.last_book = book
             self.last_chapter = chapter
@@ -169,12 +193,12 @@ class ScriptureProcesser:
         return result
 
 
-def process(file_name: str) -> List[str]:
+def process(file_name: str, skip_fetching: bool = True) -> List[str]:
     current_dir = os.getcwd()
     with open(os.path.join(current_dir, file_name)) as f:
         lines = f.readlines()
 
-    processer = ScriptureProcesser()
+    processer = ScriptureProcesser(fetch_verse=not skip_fetching)
     out = []
     for line in lines:
         if not line.strip():
@@ -196,8 +220,14 @@ def process(file_name: str) -> List[str]:
             logging.debug("References in paren: %s", ref_in_paren)
             verses.extend(processer.process(ref_in_paren))
         out.append("")
-        for verse in verses:
-            out.append(f"{verse[0]}  {verse[1]}")
+        for i, verse in enumerate(verses):
+            if verse[1] == ",":
+                if i != len(verses) - 1:
+                    out.append(f"{verse[0]}, ")
+                else:
+                    out.append(f"{verse[0]}")
+            else:
+                out.append(f"{verse[0]}  {verse[1]}")
         out.append("")
     return out
 
@@ -218,8 +248,8 @@ if __name__ == "__main__":
     parser.add_argument("file_name", type=str, help="The name of the file to process")
     args = parser.parse_args()
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.WARNING,
         format="%(filename)s:%(lineno)d: %(levelname)s - %(message)s",
     )
-    out = process(args.file_name)
+    out = process(args.file_name, skip_fetching=False)
     print("\n".join(out))
